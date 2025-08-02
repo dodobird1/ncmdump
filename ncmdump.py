@@ -12,11 +12,11 @@ import argparse
 import glob
 import sys
 
-def dump(file_path, output_dir=None, del_ncm=False):
+def dump(file_path, output_dir=None, del_ncm=False, not_overwrite=False):
     core_key = binascii.a2b_hex("687A4852416D736F356B496E62617857")
     meta_key = binascii.a2b_hex("2331346C6A6B5F215C5D2630553C2728")
     unpad = lambda s: s[0:-(s[-1] if type(s[-1]) == int else ord(s[-1]))]
-    
+
     with open(file_path, 'rb') as f:
         header = f.read(8)
         assert binascii.b2a_hex(header) == b'4354454e4644414d'
@@ -48,6 +48,8 @@ def dump(file_path, output_dir=None, del_ncm=False):
         meta_length = f.read(4)
         meta_length = struct.unpack('<I', bytes(meta_length))[0]
         meta_data = f.read(meta_length)
+        
+        
         meta_data_array = bytearray(meta_data)
         for i in range(0, len(meta_data_array)):
             meta_data_array[i] ^= 0x63
@@ -69,6 +71,11 @@ def dump(file_path, output_dir=None, del_ncm=False):
         else:
             output_path = os.path.join(os.path.dirname(file_path), file_name)
         
+        if not_overwrite and os.path.exists(output_path):
+            print(f"Skipping {file_path}: output file (or a file with the same file name) exists")
+            if del_ncm:
+                os.remove(file_path)
+            return
         with open(output_path, 'wb') as m:
             while True:
                 chunk = bytearray(f.read(0x8000))
@@ -89,6 +96,7 @@ if __name__ == '__main__':
     group.add_argument('--file_list', help='File containing list of .ncm files')
     parser.add_argument('-o', '--output', help='Output directory', required=True)
     parser.add_argument('-d', '--del_ncm', help='Delete original .ncm files', action='store_true')
+    parser.add_argument('-n', '--not-overwrite', help='Skip if output file exists', action='store_true')
     args = parser.parse_args()
 
     if args.input:
@@ -112,7 +120,7 @@ if __name__ == '__main__':
 
     for file_path in files_to_process:
         try:
-            dump(file_path, output_dir, del_ncm=args.del_ncm)
+            dump(file_path, output_dir, del_ncm=args.del_ncm, not_overwrite=args.not_overwrite)
             print(f"Successfully processed {file_path}")
         except Exception as e:
             print(f"Failed to process {file_path}: {e}")

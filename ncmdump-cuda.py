@@ -72,7 +72,7 @@ def cpu_decrypt(data, key_box):
         data_array[i - 1] ^= key_box[(a + b) & 0xff]
     return bytes(data_array)
 
-def dump(file_path, output_dir=None, del_ncm=False, use_gpu=True):
+def dump(file_path, output_dir=None, del_ncm=False, use_gpu=True, not_overwrite=False):
     core_key = binascii.a2b_hex("687A4852416D736F356B496E62617857")
     meta_key = binascii.a2b_hex("2331346C6A6B5F215C5D2630553C2728")
     unpad = lambda s: s[0:-(s[-1] if type(s[-1]) == int else ord(s[-1]))]
@@ -108,6 +108,7 @@ def dump(file_path, output_dir=None, del_ncm=False, use_gpu=True):
         meta_length = f.read(4)
         meta_length = struct.unpack('<I', bytes(meta_length))[0]
         meta_data = f.read(meta_length)
+        
         meta_data_array = bytearray(meta_data)
         for i in range(0, len(meta_data_array)):
             meta_data_array[i] ^= 0x63
@@ -128,7 +129,11 @@ def dump(file_path, output_dir=None, del_ncm=False, use_gpu=True):
             output_path = os.path.join(output_dir, file_name)
         else:
             output_path = os.path.join(os.path.dirname(file_path), file_name)
-        
+        if not_overwrite and os.path.exists(output_path):
+            print(f"Skipping {file_path}: output file (or a file with the same file name) exists")
+            if del_ncm:
+                os.remove(file_path)
+            return
         with open(output_path, 'wb') as m:
             block_size = 1024 * 1024 * 10  # 10MB块大小
             while True:
@@ -159,16 +164,17 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output', help='Output directory', required=True)
     parser.add_argument('-d', '--del_ncm', help='Delete original .ncm files', action='store_true')
     parser.add_argument('--disable_gpu', help='Disable GPU acceleration', action='store_true')
+    parser.add_argument('-n', '--not-overwrite', help='Skip if output file exists', action='store_true')
     args = parser.parse_args()
 
     # 确定是否使用GPU
     use_gpu = not args.disable_gpu and HAVE_PYCUDA
     if use_gpu:
-        print("使用GPU加速")
+        print("Using GPU acceleration")
     elif args.disable_gpu:
-        print("GPU加速已禁用")
+        print("GPU acceleration banned")
     elif not HAVE_PYCUDA:
-        print("未找到PyCUDA，使用CPU解密")
+        print("WARNING: Did not detect PyCUDA; will use CPU instead")
 
     if args.input:
         if os.path.isfile(args.input):
@@ -176,14 +182,14 @@ if __name__ == '__main__':
         elif os.path.isdir(args.input):
             files_to_process = glob.glob(os.path.join(args.input, '*.ncm'))
         else:
-            print(f"错误: {args.input} 不是文件或目录")
+            print(f"ERROR: {args.input} is not a file or directory")
             sys.exit(1)
     elif args.file_list:
         try:
             with open(args.file_list, 'r') as fl:
                 files_to_process = [line.strip() for line in fl]
         except FileNotFoundError:
-            print(f"错误: 文件列表 {args.file_list} 未找到")
+            print(f"ERROR: file list {args.file_list} cannot be found or accessed")
             sys.exit(1)
     output_dir = args.output
     if output_dir:
@@ -191,7 +197,7 @@ if __name__ == '__main__':
 
     for file_path in files_to_process:
         try:
-            dump(file_path, output_dir, del_ncm=args.del_ncm, use_gpu=use_gpu)
-            print(f"成功处理: {file_path}")
+            dump(file_path, output_dir, del_ncm=args.del_ncm, use_gpu=use_gpu, not_overwrite=args.not_overwrite)
+            print(f"Successful: {file_path}")
         except Exception as e:
-            print(f"处理失败 {file_path}: {e}")
+            print(f"ERROR while processing {file_path}: {e}")
