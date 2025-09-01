@@ -1,0 +1,11 @@
+charset-normalizer==3.1.0
+cipher==0.1
+crypto==1.4.1
+idna==3.4
+Naked==0.1.32
+pycryptodome==3.18.0
+PyYAML==6.0
+requests==2.31.0
+shellescape==3.8.1
+urllib3==2.0.3
+wincertstore==0.2
